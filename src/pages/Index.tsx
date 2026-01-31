@@ -213,16 +213,7 @@ const Index = () => {
             </>
           )}
         </div>
-
-        {/* Footer */}
-        {displayMessages.length === 0 && (
-          <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-            <div className="w-4 h-4 rounded-full bg-muted flex items-center justify-center">
-              <div className="w-2 h-2 rounded-full bg-muted-foreground" />
-            </div>
-            <span>Powered by Chatbase</span>
-          </div>
-        )}
+        
       </main>
     </div>
   );

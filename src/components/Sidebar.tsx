@@ -45,7 +45,7 @@ export function Sidebar({
           onClick={onToggle}
           className="p-1.5 rounded-md hover:bg-accent transition-colors"
         >
-          <PanelLeftClose className="w-1 h-10 text-muted-foreground" />
+          <PanelLeftClose className="w-5 h-5 text-muted-foreground" />
         </button>
       </div>
 
