@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { PlusCircle, PanelLeftClose, PanelLeft, Moon, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -7,9 +6,10 @@ interface SidebarProps {
   onToggle: () => void;
   isDark: boolean;
   onToggleTheme: () => void;
+  onNewChat: () => void;
 }
 
-export function Sidebar({ isCollapsed, onToggle, isDark, onToggleTheme }: SidebarProps) {
+export function Sidebar({ isCollapsed, onToggle, isDark, onToggleTheme, onNewChat }: SidebarProps) {
   return (
     <aside
       className={cn(
@@ -34,7 +34,10 @@ export function Sidebar({ isCollapsed, onToggle, isDark, onToggleTheme }: Sideba
 
       {/* New Chat Button */}
       <div className="px-3 py-2">
-        <button className="flex items-center gap-2 text-sm text-foreground hover:bg-accent rounded-md px-2 py-1.5 w-full transition-colors">
+        <button 
+          onClick={onNewChat}
+          className="flex items-center gap-2 text-sm text-foreground hover:bg-accent rounded-md px-2 py-1.5 w-full transition-colors"
+        >
           <PlusCircle className="w-4 h-4" />
           <span>New chat</span>
         </button>
