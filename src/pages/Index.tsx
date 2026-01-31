@@ -6,6 +6,7 @@ import { HeroIcon } from "@/components/HeroIcon";
 import { ChatMessage } from "@/components/ChatMessage";
 import { streamChat } from "@/lib/api/chat";
 import { useToast } from "@/hooks/use-toast";
+import { useConversations, useMessages, type Message } from "@/hooks/useConversations";
 
 const suggestions = [
   "What is SPD?",
@@ -14,15 +15,23 @@ const suggestions = [
   "Difference between Mayo and Metzenbaum scissors?",
 ];
 
-type Message = { role: "user" | "assistant"; content: string };
-
 const Index = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isDark, setIsDark] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [localMessages, setLocalMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  const {
+    conversations,
+    createConversation,
+    updateConversationTitle,
+    deleteConversation,
+  } = useConversations();
+
+  const { messages: dbMessages, addMessage, setMessages: setDbMessages } = useMessages(currentConversationId);
 
   useEffect(() => {
     if (isDark) {
@@ -34,18 +43,44 @@ const Index = () => {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [localMessages, dbMessages]);
+
+  // Sync local messages with DB messages when conversation changes
+  useEffect(() => {
+    if (currentConversationId) {
+      setLocalMessages(dbMessages.map(m => ({ role: m.role, content: m.content })));
+    }
+  }, [dbMessages, currentConversationId]);
 
   const handleSend = async (input: string) => {
-    const userMsg: Message = { role: "user", content: input };
-    setMessages((prev) => [...prev, userMsg]);
+    let convId = currentConversationId;
+
+    // Create new conversation if needed
+    if (!convId) {
+      const newId = await createConversation(input.slice(0, 50));
+      if (!newId) {
+        toast({ title: "Error", description: "Failed to create conversation", variant: "destructive" });
+        return;
+      }
+      convId = newId;
+      setCurrentConversationId(newId);
+    } else if (localMessages.length === 0) {
+      // Update title for first message
+      await updateConversationTitle(convId, input.slice(0, 50));
+    }
+
+    const userMsg: { role: "user" | "assistant"; content: string } = { role: "user", content: input };
+    setLocalMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
 
+    // Save user message to DB
+    await addMessage("user", input);
+
     let assistantSoFar = "";
-    
+
     const upsertAssistant = (nextChunk: string) => {
       assistantSoFar += nextChunk;
-      setMessages((prev) => {
+      setLocalMessages((prev) => {
         const last = prev[prev.length - 1];
         if (last?.role === "assistant") {
           return prev.map((m, i) =>
@@ -57,9 +92,15 @@ const Index = () => {
     };
 
     await streamChat({
-      messages: [...messages, userMsg],
+      messages: [...localMessages, userMsg],
       onDelta: (chunk) => upsertAssistant(chunk),
-      onDone: () => setIsLoading(false),
+      onDone: async () => {
+        setIsLoading(false);
+        // Save assistant message to DB
+        if (assistantSoFar) {
+          await addMessage("assistant", assistantSoFar);
+        }
+      },
       onError: (error) => {
         setIsLoading(false);
         toast({
@@ -76,8 +117,23 @@ const Index = () => {
   };
 
   const handleNewChat = () => {
-    setMessages([]);
+    setCurrentConversationId(null);
+    setLocalMessages([]);
+    setDbMessages([]);
   };
+
+  const handleSelectConversation = (id: string) => {
+    setCurrentConversationId(id);
+  };
+
+  const handleDeleteConversation = async (id: string) => {
+    await deleteConversation(id);
+    if (currentConversationId === id) {
+      handleNewChat();
+    }
+  };
+
+  const displayMessages = localMessages;
 
   return (
     <div className="flex h-screen bg-background">
@@ -88,6 +144,10 @@ const Index = () => {
         isDark={isDark}
         onToggleTheme={() => setIsDark(!isDark)}
         onNewChat={handleNewChat}
+        conversations={conversations}
+        currentConversationId={currentConversationId}
+        onSelectConversation={handleSelectConversation}
+        onDeleteConversation={handleDeleteConversation}
       />
 
       {/* Main Content */}
@@ -101,7 +161,7 @@ const Index = () => {
 
         {/* Chat Area */}
         <div className="flex-1 flex flex-col items-center px-4 overflow-hidden">
-          {messages.length === 0 ? (
+          {displayMessages.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center">
               {/* Hero Section */}
               <div className="flex flex-col items-center mb-8">
@@ -129,10 +189,10 @@ const Index = () => {
             <>
               {/* Messages */}
               <div className="flex-1 w-full max-w-3xl overflow-y-auto py-8 space-y-6">
-                {messages.map((msg, idx) => (
+                {displayMessages.map((msg, idx) => (
                   <ChatMessage key={idx} message={msg} />
                 ))}
-                {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
+                {isLoading && displayMessages[displayMessages.length - 1]?.role !== "assistant" && (
                   <div className="flex justify-start">
                     <div className="bg-secondary text-secondary-foreground px-4 py-3 rounded-2xl">
                       <div className="flex gap-1">
@@ -155,7 +215,7 @@ const Index = () => {
         </div>
 
         {/* Footer */}
-        {messages.length === 0 && (
+        {displayMessages.length === 0 && (
           <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
             <div className="w-4 h-4 rounded-full bg-muted flex items-center justify-center">
               <div className="w-2 h-2 rounded-full bg-muted-foreground" />
