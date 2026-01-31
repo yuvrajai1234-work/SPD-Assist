@@ -1,8 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Sidebar, SidebarToggle } from "@/components/Sidebar";
 import { ChatInput } from "@/components/ChatInput";
 import { SuggestionChip } from "@/components/SuggestionChip";
 import { HeroIcon } from "@/components/HeroIcon";
+import { ChatMessage } from "@/components/ChatMessage";
+import { streamChat } from "@/lib/api/chat";
+import { useToast } from "@/hooks/use-toast";
 
 const suggestions = [
   "What is SPD?",
@@ -10,10 +13,15 @@ const suggestions = [
   "Stages in SPD?",
 ];
 
+type Message = { role: "user" | "assistant"; content: string };
+
 const Index = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isDark, setIsDark] = useState(false);
-  const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (isDark) {
@@ -23,19 +31,51 @@ const Index = () => {
     }
   }, [isDark]);
 
-  const handleSend = (message: string) => {
-    setMessages((prev) => [...prev, { role: "user", content: message }]);
-    // Simulate assistant response
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: `You asked: "${message}". This is a demo response.` },
-      ]);
-    }, 500);
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleSend = async (input: string) => {
+    const userMsg: Message = { role: "user", content: input };
+    setMessages((prev) => [...prev, userMsg]);
+    setIsLoading(true);
+
+    let assistantSoFar = "";
+    
+    const upsertAssistant = (nextChunk: string) => {
+      assistantSoFar += nextChunk;
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "assistant") {
+          return prev.map((m, i) =>
+            i === prev.length - 1 ? { ...m, content: assistantSoFar } : m
+          );
+        }
+        return [...prev, { role: "assistant", content: assistantSoFar }];
+      });
+    };
+
+    await streamChat({
+      messages: [...messages, userMsg],
+      onDelta: (chunk) => upsertAssistant(chunk),
+      onDone: () => setIsLoading(false),
+      onError: (error) => {
+        setIsLoading(false);
+        toast({
+          title: "Error",
+          description: error,
+          variant: "destructive",
+        });
+      },
+    });
   };
 
   const handleSuggestionClick = (suggestion: string) => {
     handleSend(suggestion);
+  };
+
+  const handleNewChat = () => {
+    setMessages([]);
   };
 
   return (
@@ -46,6 +86,7 @@ const Index = () => {
         onToggle={() => setSidebarCollapsed(true)}
         isDark={isDark}
         onToggleTheme={() => setIsDark(!isDark)}
+        onNewChat={handleNewChat}
       />
 
       {/* Main Content */}
@@ -58,9 +99,9 @@ const Index = () => {
         )}
 
         {/* Chat Area */}
-        <div className="flex-1 flex flex-col items-center justify-center px-4">
+        <div className="flex-1 flex flex-col items-center px-4 overflow-hidden">
           {messages.length === 0 ? (
-            <>
+            <div className="flex-1 flex flex-col items-center justify-center">
               {/* Hero Section */}
               <div className="flex flex-col items-center mb-8">
                 <HeroIcon />
@@ -70,7 +111,7 @@ const Index = () => {
               </div>
 
               {/* Chat Input */}
-              <ChatInput onSend={handleSend} />
+              <ChatInput onSend={handleSend} disabled={isLoading} />
 
               {/* Suggestion Chips */}
               <div className="flex flex-wrap justify-center gap-3 mt-6">
@@ -82,34 +123,31 @@ const Index = () => {
                   />
                 ))}
               </div>
-            </>
+            </div>
           ) : (
             <>
               {/* Messages */}
-              <div className="flex-1 w-full max-w-2xl overflow-y-auto py-8 space-y-6">
+              <div className="flex-1 w-full max-w-3xl overflow-y-auto py-8 space-y-6">
                 {messages.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex ${
-                      msg.role === "user" ? "justify-end" : "justify-start"
-                    }`}
-                  >
-                    <div
-                      className={`max-w-[80%] px-4 py-3 rounded-2xl ${
-                        msg.role === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-secondary text-secondary-foreground"
-                      }`}
-                    >
-                      {msg.content}
+                  <ChatMessage key={idx} message={msg} />
+                ))}
+                {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
+                  <div className="flex justify-start">
+                    <div className="bg-secondary text-secondary-foreground px-4 py-3 rounded-2xl">
+                      <div className="flex gap-1">
+                        <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                        <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                        <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                      </div>
                     </div>
                   </div>
-                ))}
+                )}
+                <div ref={messagesEndRef} />
               </div>
 
               {/* Chat Input at bottom */}
-              <div className="w-full pb-8">
-                <ChatInput onSend={handleSend} />
+              <div className="w-full max-w-2xl pb-8">
+                <ChatInput onSend={handleSend} disabled={isLoading} />
               </div>
             </>
           )}
