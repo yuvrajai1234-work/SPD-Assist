@@ -1,5 +1,7 @@
 import ReactMarkdown from "react-markdown";
+import { Volume2, VolumeX, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 
 interface ChatMessageProps {
   message: {
@@ -10,12 +12,21 @@ interface ChatMessageProps {
 
 export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === "user";
+  const { speak, stop, isSpeaking, isLoading } = useTextToSpeech();
+
+  const handleSpeakClick = () => {
+    if (isSpeaking) {
+      stop();
+    } else {
+      speak(message.content);
+    }
+  };
 
   return (
     <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "max-w-[85%] px-4 py-3 rounded-2xl",
+          "max-w-[85%] px-4 py-3 rounded-2xl relative group",
           isUser
             ? "bg-primary text-primary-foreground"
             : "bg-secondary text-secondary-foreground"
@@ -45,6 +56,27 @@ export function ChatMessage({ message }: ChatMessageProps) {
               {message.content}
             </ReactMarkdown>
           </div>
+        )}
+
+        {/* TTS button for assistant messages */}
+        {!isUser && message.content && (
+          <button
+            onClick={handleSpeakClick}
+            disabled={isLoading}
+            className={cn(
+              "absolute -bottom-2 -right-2 p-1.5 rounded-full bg-card border border-border shadow-sm",
+              "opacity-0 group-hover:opacity-100 transition-opacity",
+              "hover:bg-accent disabled:opacity-50"
+            )}
+          >
+            {isLoading ? (
+              <Loader2 className="w-3.5 h-3.5 text-muted-foreground animate-spin" />
+            ) : isSpeaking ? (
+              <VolumeX className="w-3.5 h-3.5 text-primary" />
+            ) : (
+              <Volume2 className="w-3.5 h-3.5 text-muted-foreground" />
+            )}
+          </button>
         )}
       </div>
     </div>
