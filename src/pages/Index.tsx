@@ -9,8 +9,9 @@ import { useToast } from "@/hooks/use-toast";
 
 const suggestions = [
   "What is SPD?",
-  "Equipments used in SPD?",
-  "Stages in SPD?",
+  "List all hemostatic forceps by size",
+  "What blade fits a #3 handle?",
+  "Difference between Mayo and Metzenbaum scissors?",
 ];
 
 type Message = { role: "user" | "assistant"; content: string };
