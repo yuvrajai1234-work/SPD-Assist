@@ -67,7 +67,7 @@ export function Sidebar({
             <div
               key={conv.id}
               className={cn(
-                "group flex items-center gap-2 text-sm rounded-md px-2 py-1.5 w-full transition-colors cursor-pointer",
+                "group grid grid-cols-[auto_1fr_auto] items-center gap-2 text-sm rounded-md px-2 py-1.5 w-full transition-colors cursor-pointer",
                 currentConversationId === conv.id
                   ? "bg-accent text-accent-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -75,13 +75,13 @@ export function Sidebar({
               onClick={() => onSelectConversation(conv.id)}
             >
               <MessageSquare className="w-4 h-4 flex-shrink-0" />
-              <span className="truncate flex-1 min-w-0">{conv.title}</span>
+              <span className="truncate flex-1">{conv.title}</span>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onDeleteConversation(conv.id);
                 }}
-                className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 transition-all duration-200 flex-shrink-0 ml-auto"
+                className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 transition-all duration-200 flex-shrink-0"
               >
                 <Trash2 className="w-3 h-3 text-destructive" />
               </button>
