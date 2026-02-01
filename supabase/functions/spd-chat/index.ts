@@ -519,6 +519,9 @@ function isLikelySpdQuestion(text: string) {
     "osha",
     "cdc",
     "ifu",
+    "hi","Hello",
+    "Bye",
+    "Thanks","Thankyou"
   ];
 
   return keywords.some((k) => t.includes(k));
