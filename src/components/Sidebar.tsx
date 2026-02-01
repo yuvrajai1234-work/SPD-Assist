@@ -75,13 +75,13 @@ export function Sidebar({
               onClick={() => onSelectConversation(conv.id)}
             >
               <MessageSquare className="w-4 h-4 flex-shrink-0" />
-              <span className="truncate flex-1">{conv.title}</span>
+              <span className="truncate flex-1 min-w-0">{conv.title}</span>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onDeleteConversation(conv.id);
                 }}
-                className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 transition-all duration-200 flex-shrink-0"
+                className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 transition-all duration-200 flex-shrink-0 ml-auto"
               >
                 <Trash2 className="w-3 h-3 text-destructive" />
               </button>
