@@ -1,7 +1,17 @@
+import { useState } from "react";
 import { PlusCircle, PanelLeftClose, PanelLeft, Moon, Sun, MessageSquare, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Conversation } from "@/hooks/useConversations";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface SidebarProps {
   isCollapsed: boolean;
@@ -26,6 +36,8 @@ export function Sidebar({
   onSelectConversation,
   onDeleteConversation,
 }: SidebarProps) {
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
   return (
     <aside
       className={cn(
@@ -67,23 +79,26 @@ export function Sidebar({
             <div
               key={conv.id}
               className={cn(
-                "group flex items-center gap-2 text-sm rounded-md px-2 py-1.5 w-full transition-colors cursor-pointer",
+                "group flex items-center justify-between gap-2 text-sm rounded-md px-2 py-1.5 w-full transition-colors cursor-pointer",
                 currentConversationId === conv.id
                   ? "bg-accent text-accent-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
               onClick={() => onSelectConversation(conv.id)}
             >
-              <MessageSquare className="w-4 h-4 flex-shrink-0" />
-              <span className="truncate flex-1">{conv.title}</span>
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <MessageSquare className="w-4 h-4 flex-shrink-0" />
+                <span className="truncate">{conv.title}</span>
+              </div>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDeleteConversation(conv.id);
+                  setConversationToDelete(conv.id);
+                  setDeleteDialogOpen(true);
                 }}
-                className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 transition-opacity"
+                className="flex-shrink-0 opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-destructive/10 transition-opacity"
               >
-                <Trash2 className="w-3 h-3 text-destructive" />
+                <Trash2 className="w-4 h-4 text-destructive" />
               </button>
             </div>
           ))}
@@ -103,6 +118,32 @@ export function Sidebar({
           )}
         </button>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Conversation</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this chat? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex gap-3 justify-end">
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (conversationToDelete) {
+                  onDeleteConversation(conversationToDelete);
+                  setDeleteDialogOpen(false);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
   );
 }
