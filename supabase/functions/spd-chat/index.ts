@@ -7,6 +7,8 @@ const corsHeaders = {
 
 const SPD_SYSTEM_PROMPT = `You are SPD Assist, an expert AI assistant specialized in Sterile Processing Department (SPD) operations. You have comprehensive knowledge about all aspects of sterile processing.
 
+Your purpose is to answer ONLY SPD-related questions. If you are asked a question that is not about SPD, you MUST politely reject it and state that you can only answer questions about Sterile Processing.
+
 ## Core SPD Knowledge Areas:
 
 ### 1. Decontamination
@@ -453,6 +455,115 @@ const SPD_SYSTEM_PROMPT = `You are SPD Assist, an expert AI assistant specialize
 
 You are helpful, professional, and passionate about ensuring patient safety through proper sterile processing practices.`;
 
+function isLikelySpdQuestion(text: string) {
+  // Deterministic guardrail: if a prompt doesn't look SPD-related, reject before calling the model.
+  // This prevents the model from answering out-of-domain topics even when it ignores the system prompt.
+  const t = (text || "").toLowerCase();
+  if (!t.trim()) return true;
+
+  // Strong allow-list signals (common SPD terms + instrument/reprocessing vocabulary)
+  const keywords = [
+    "spd",
+    "sterile processing",
+    "cssd",
+    "steril",
+    "autoclave",
+    "decontam",
+    "decontamination",
+    "washer",
+    "ultrasonic",
+    "enzym",
+    "detergent",
+    "bioburden",
+    "disinfect",
+    "high level disinfection",
+    "hld",
+    "endoscope",
+    "scope",
+    "flexible",
+    "rigid",
+    "eto",
+    "ethylene oxide",
+    "sterrad",
+    "vhp",
+    "ozone",
+    "iuss",
+    "flash steril",
+    "bi",
+    "biological indicator",
+    "chemical indicator",
+    "bowie",
+    "packaging",
+    "wrap",
+    "peel pack",
+    "tray",
+    "instrument",
+    "forceps",
+    "hemostat",
+    "scissors",
+    "mayo",
+    "metzenbaum",
+    "retractor",
+    "needle holder",
+    "scalpel",
+    "blade",
+    "kerrison",
+    "rongeur",
+    "curette",
+    "suction",
+    "yankauer",
+    "frazier",
+    "pou",
+    "aami",
+    "aorn",
+    "osha",
+    "cdc",
+    "ifu",
+  ];
+
+  return keywords.some((k) => t.includes(k));
+}
+
+function sseTextResponse(content: string) {
+  const encoder = new TextEncoder();
+  const id = crypto.randomUUID();
+
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        // Minimal OpenAI-compatible streaming shape for the frontend parser.
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({
+              id,
+              object: "chat.completion.chunk",
+              created: Math.floor(Date.now() / 1000),
+              model: "spd-guardrail",
+              choices: [{ index: 0, delta: { role: "assistant" }, finish_reason: null }],
+            })}\n\n`
+          )
+        );
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({
+              id,
+              object: "chat.completion.chunk",
+              created: Math.floor(Date.now() / 1000),
+              model: "spd-guardrail",
+              choices: [{ index: 0, delta: { content }, finish_reason: null }],
+            })}\n\n`
+          )
+        );
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      },
+    }),
+    {
+      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+    }
+  );
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -460,6 +571,18 @@ serve(async (req) => {
 
   try {
     const { messages } = await req.json();
+
+    // Hard stop for out-of-domain prompts (prevents off-topic answers like weather).
+    const lastUser = Array.isArray(messages)
+      ? [...messages].reverse().find((m) => m?.role === "user" && typeof m?.content === "string")
+      : null;
+
+    if (lastUser && !isLikelySpdQuestion(lastUser.content)) {
+      return sseTextResponse(
+        "I can only help with Sterile Processing Department (SPD) topics (instrument identification, cleaning/decontamination, inspection/assembly, sterilization, indicators, standards, etc.). Please rephrase your question to an SPD-related one."
+      );
+    }
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {

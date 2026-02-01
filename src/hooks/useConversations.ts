@@ -126,12 +126,13 @@ export function useMessages(conversationId: string | null) {
     fetchMessages();
   }, [conversationId]);
 
-  const addMessage = async (role: "user" | "assistant", content: string) => {
-    if (!conversationId) return null;
+  const addMessage = async (role: "user" | "assistant", content: string, convId?: string) => {
+    const targetConversationId = convId || conversationId;
+    if (!targetConversationId) return null;
 
     const { data, error } = await supabase
       .from("messages")
-      .insert({ conversation_id: conversationId, role, content })
+      .insert({ conversation_id: targetConversationId, role, content })
       .select()
       .single();
 
@@ -145,7 +146,10 @@ export function useMessages(conversationId: string | null) {
       role: data.role as "user" | "assistant"
     };
 
-    setMessages((prev) => [...prev, typedData]);
+    if (targetConversationId === conversationId) {
+        setMessages((prev) => [...prev, typedData]);
+    }
+
     return typedData;
   };
 

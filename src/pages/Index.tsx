@@ -54,27 +54,31 @@ const Index = () => {
 
   const handleSend = async (input: string) => {
     let convId = currentConversationId;
-
-    // Create new conversation if needed
-    if (!convId) {
-      const newId = await createConversation(input.slice(0, 50));
-      if (!newId) {
-        toast({ title: "Error", description: "Failed to create conversation", variant: "destructive" });
-        return;
-      }
-      convId = newId;
-      setCurrentConversationId(newId);
-    } else if (localMessages.length === 0) {
-      // Update title for first message
-      await updateConversationTitle(convId, input.slice(0, 50));
-    }
+    let isNewConversation = !convId;
 
     const userMsg: { role: "user" | "assistant"; content: string } = { role: "user", content: input };
     setLocalMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
 
-    // Save user message to DB
-    await addMessage("user", input);
+    // Create new conversation if needed
+    if (isNewConversation) {
+      const newId = await createConversation(input.slice(0, 50));
+      if (!newId) {
+        toast({ title: "Error", description: "Failed to create conversation", variant: "destructive" });
+        setIsLoading(false);
+        setLocalMessages([]); // Revert local state
+        return;
+      }
+      convId = newId;
+      setCurrentConversationId(newId);
+      await addMessage("user", input, newId);
+    } else {
+        if (localMessages.length === 1 && !isNewConversation) {
+            // Update title for first message
+            await updateConversationTitle(convId, input.slice(0, 50));
+        }
+        await addMessage("user", input, convId);
+    }
 
     let assistantSoFar = "";
 
@@ -98,7 +102,7 @@ const Index = () => {
         setIsLoading(false);
         // Save assistant message to DB
         if (assistantSoFar) {
-          await addMessage("assistant", assistantSoFar);
+          await addMessage("assistant", assistantSoFar, convId);
         }
       },
       onError: (error) => {
@@ -112,11 +116,12 @@ const Index = () => {
     });
   };
 
-  const handleSuggestionClick = (suggestion: string) => {
+  const handleSuggestionClick = async (suggestion: string) => {
+    await handleNewChat();
     handleSend(suggestion);
   };
 
-  const handleNewChat = () => {
+  const handleNewChat = async () => {
     setCurrentConversationId(null);
     setLocalMessages([]);
     setDbMessages([]);
